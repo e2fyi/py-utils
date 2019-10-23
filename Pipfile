@@ -1,0 +1,35 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[packages]
+boto3 = "==1.9.*"
+pydantic = ">=0.32"
+typing-extensions = "*"
+python-magic = {version = "==0.4.*",markers = "sys_platform == 'linux'"}
+python-magic-bin = {version = "==0.4.*",markers = "sys_platform == 'darwin' or sys_platform == 'windows'"}
+pandas = "*"
+
+[dev-packages]
+"flake8" = "==3.7.*"
+mypy = ">=0.720"
+docformatter = "==1.1.*"
+pylint = "==2.3.*"
+pydocstyle = "*"
+bandit = "==1.5.*"
+black = "==19.10b0"
+"flake8-isort" = "==2.7.*"
+"flake8-comprehensions" = "==2.1.*"
+sphinx = "==2.*"
+sphinx-rtd-theme = "==0.4.*"
+sphinx-autoapi = "==1.*"
+recommonmark = "==0.5.*"
+setuptools = "*"
+wheel = "*"
+coverage = "==4.5.*"
+pipenv-to-requirements = "==0.8.*"
+coveralls = "==1.8.*"
+
+[pipenv]
+allow_prereleases = true

@@ -1,0 +1,17 @@
+[flake8]
+ignore = C408,E203
+exclude =
+    .venv,
+    .git,
+    __pycache__,
+    docker/,
+    docs/,
+    **/__init__.py,
+    tests/**,
+    tensorflow/**,
+    tensorflow_serving/**,
+    examples/**,
+    **/*_grpc.py,   # generated protobuf
+    **/*_pb2.py,    # generated protobuf
+max-complexity = 10
+max-line-length = 88
