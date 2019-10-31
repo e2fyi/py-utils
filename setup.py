@@ -13,6 +13,10 @@ with open("requirements-dev.txt", "r") as filein:
 with open("version.txt", "r") as filein:
     version = filein.read()
 
+with open("README.md", "r") as filein:
+    readme = filein.read()
+
+
 setup_requirements: list = [
     "setuptools >= 41.0.0",
     # python3 specifically requires wheel 0.26
@@ -32,10 +36,19 @@ setup(
         "Programming Language :: Python :: 3.7",
     ],
     description="General utils for interacting with aws resources.",
+    long_description=readme,
+    long_description_content_type="text/markdown",
     include_package_data=True,
-    package_data={"": ["version.txt", "requirements.txt", "test.py"]},
-    extras_require={"pandas": ["pandas"]},
-    keywords="util aws s3",
+    package_data={
+        "": [
+            "version.txt",
+            "requirements.txt",
+            "requirements-dev.txt",
+            "test.py",
+            "README.md",
+        ]
+    },
+    keywords="util aws s3 boto3 upload",
     name="e2fyi-utils",
     packages=["e2fyi.utils"],
     setup_requires=setup_requirements,
