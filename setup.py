@@ -38,6 +38,7 @@ setup(
     description="General utils for interacting with aws resources.",
     long_description=readme,
     long_description_content_type="text/markdown",
+    url="https://github.com/e2fyi/py-utils",
     include_package_data=True,
     package_data={
         "": [
