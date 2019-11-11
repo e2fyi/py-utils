@@ -18,11 +18,12 @@ API documentation can be found at [https://e2fyi-utils.readthedocs.io/en/latest/
 
 #### CHANGELOG
 
-| version        | description                                     |
-| -------------- | ----------------------------------------------- |
-| v0.1.0a1       | Initial release. Support AWS S3 bucket.         |
-| v0.1.0a1.post1 | Add README to pypi.                             |
-| v0.1.0a2       | Fix bug: include requirements.txt into setup.py |
+| version        | description                                                                        |
+| -------------- | ---------------------------------------------------------------------------------- |
+| v0.1.0a1       | Initial release. Support AWS S3 bucket.                                            |
+| v0.1.0a1.post1 | Add README to pypi.                                                                |
+| v0.1.0a2       | Fix bug: include requirements.txt into setup.py                                    |
+| v0.1.0a3       | Fix bug: incude e2fyi.utils.aws, e2fyi.utils.core and e2fyi.utils.io into setup.py |
 
 ## Quickstart
 
