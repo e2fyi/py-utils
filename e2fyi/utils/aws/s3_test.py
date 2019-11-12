@@ -239,3 +239,15 @@ class S3BucketTest(unittest.TestCase):
                 {"col1": 4, "col2": "foo"},
             ],
         )
+
+    def test_create_resource_key(self):
+        bucket = S3Bucket(name="bucket", get_prefix=lambda x: "folder/%s" % x)
+        key = bucket.create_resource_key("filename.ext")
+
+        self.assertEqual(key, "folder/filename.ext")
+
+    def test_create_resource_uri(self):
+        bucket = S3Bucket(name="bucket", get_prefix=lambda x: "folder/%s" % x)
+        key = bucket.create_resource_uri("filename.ext")
+
+        self.assertEqual(key, "s3a://bucket/folder/filename.ext")

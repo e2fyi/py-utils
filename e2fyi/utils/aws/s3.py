@@ -442,6 +442,47 @@ class S3Bucket:
     def __str__(self) -> str:
         return self.name
 
+    def create_resource_key(self, filename: str) -> str:
+        """
+        Creates a resource key based on the s3 bucket name, and configured prefix.
+
+        Example::
+
+            from e2fyi.utils.aws import S3Bucket
+
+            s3 = S3Bucket(name="foo", get_prefix=lambda x: "bar/%s" % x)
+
+            print(s3.create_resource_key("hello.world"))  # > bar/hello.world
+
+        Args:
+            filename (str): path for the file.
+
+        Returns:
+            str: key for the resource in s3.
+        """
+        return self._get_prefix(filename)
+
+    def create_resource_uri(self, filename: str, protocol: str = "s3a://") -> str:
+        """
+        Create a resource uri based on the s3 bucket name, and configured prefix.
+
+        Example::
+
+            from e2fyi.utils.aws import S3Bucket
+
+            s3 = S3Bucket(name="foo", get_prefix=lambda x: "bar/%s" % x)
+
+            print(s3.create_resource_uri("hello.world"))  # > s3a://foo/bar/hello.world
+
+        Args:
+            filename (str): path for the file.
+            protocol (str, optional): protocol for the uri. Defaults to "s3a://".
+
+        Returns:
+            str: uri string for the resource.
+        """
+        return "%s%s/%s" % (protocol, self.name, self.create_resource_key(filename))
+
     def upload(
         self,
         filepath: str,
@@ -511,3 +552,37 @@ class S3Bucket:
         except botocore.exceptions.ClientError as exc:
             return Result(None, exception=exc)
         return Result(items)
+
+    def create_resource(
+        self,
+        filename: str,
+        content_type: str,
+        protocol: str = "s3a://",
+        stream: Union[io.StringIO, io.BytesIO, IO[StringOrBytes]] = None,
+        metadata: Dict[str, str] = None,
+    ) -> S3Resource:
+        """
+        create_s3_resource creates a new instance of S3Resource binds to the
+        current bucket.
+
+        Args:
+            filename (str): name of the resource.
+            content_type (str): mime type.
+            protocol (str, optional): protocol. Defaults to "s3a://".
+            stream (Union[io.StringIO, io.BytesIO, IO[StringOrBytes]], optional):
+                content of the resource. Defaults to None.
+            metadata (Dict[str, str], optional): metadata for the resource.
+                Defaults to None.
+
+        Returns:
+            S3Resource: a S3Resource related to the active S3Bucket.
+        """
+        return S3Resource(
+            filename=filename,
+            content_type=content_type,
+            protocol=protocol,
+            bucketname=self.name,
+            prefix=self.prefix,
+            stream=stream,
+            metadata=metadata,
+        )
