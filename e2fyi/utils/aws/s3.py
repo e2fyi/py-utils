@@ -7,12 +7,12 @@ import os.path
 from typing import IO, Dict, List, Union, Generic, TypeVar, Callable, Optional
 
 import boto3
-import magic
 import pandas as pd
 import botocore.exceptions
 
 from pydantic import BaseModel
 
+from e2fyi.utils.aws.compat import LIB_MAGIC_AVAILABLE
 from e2fyi.utils.core.results import Result
 
 T = TypeVar("T")
@@ -361,9 +361,9 @@ class S3ResourceHelper:
             metadata={"source": "%s" % type(stream), **(metadata or {})},
         )
 
-    @staticmethod
+    @classmethod
     def wrap_file(
-        filepath: str, content_type: str = "", metadata: dict = None
+        cls, filepath: str, content_type: str = "", metadata: dict = None
     ) -> S3Resource:
         """
         wrap_file returns a S3Resource with a binary data stream.
@@ -376,12 +376,16 @@ class S3ResourceHelper:
             metadata (dict, optional): Additional metadata for s3 object. Defaults to
                 None.
 
+        Raises:
+
+            ValueError: Unable to infer mime type because python-magic is not
+                available. Please provide the content_type for the filepath.
+
         Returns:
             S3Resource: [description]
         """
-        content_type = (
-            content_type if content_type else magic.from_file(filepath, mime=True)
-        )
+        content_type = content_type or cls._infer_mime(filepath)
+
         prefix = os.path.dirname(filepath) or ""
         filename = os.path.basename(filepath)
 
@@ -392,6 +396,26 @@ class S3ResourceHelper:
             stream=open(filepath, "rb"),
             metadata={"source": filepath, **(metadata or {})},
         )
+
+    @staticmethod
+    def _infer_mime(filepath: str) -> str:
+        """Infer the mime type of the file."""
+        if not LIB_MAGIC_AVAILABLE:
+            raise ValueError(
+                """
+                Unable to infer mime type because python-magic is not available.
+                Please provide the content_type for the filepath.
+
+                For debian or ubuntu machines, you might need to also install:
+
+                ```
+                sudo apt-get install libmagic-dev
+                ```
+                """
+            )
+        import magic
+
+        return magic.from_file(filepath, mime=True)  # type: ignore
 
 
 class S3Bucket:
