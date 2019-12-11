@@ -4,7 +4,9 @@ dev:
 
 dists: requirements sdist bdist wheels
 
-docs:
+.FORCE:
+
+docs: .FORCE
 	sphinx-build rst docs -b dirhtml -E -P
 
 requirements:

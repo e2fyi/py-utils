@@ -37,7 +37,7 @@ release = version
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["recommonmark", "sphinx.ext.autodoc", "autoapi.extension"]
+extensions = ["sphinx.ext.autodoc", "autoapi.extension", "m2r"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -79,3 +79,6 @@ autoapi_include_summaries = True
 autoapi_keep_files = False
 autoapi_ignore = ["*_test.py"]
 autoapi_python_class_content = "both"
+
+# for m2r extension
+source_suffix = [".rst", ".md"]

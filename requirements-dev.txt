@@ -18,6 +18,8 @@ docformatter==1.1.*
 flake8-comprehensions==2.1.*
 flake8-isort==2.7.*
 flake8==3.7.*
+m2r==0.2.*
+mistune==0.8.*
 mypy>=0.720
 pipenv-to-requirements==0.8.*
 pydocstyle

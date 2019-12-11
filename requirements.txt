@@ -10,9 +10,11 @@
 # `Pipfile.lock` and then regenerate `requirements*.txt`.
 ################################################################################
 
-boto3==1.9.*
+boto3>=1.9
+joblib
 pandas
-pydantic>=0.32
+pydantic>=0.30
+python-dateutil<2.8.1,>=2.1
 python-magic-bin==0.4.* ; sys_platform == 'darwin' or sys_platform == 'windows'
 python-magic==0.4.* ; sys_platform == 'linux'
 typing-extensions

@@ -4,12 +4,14 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
-boto3 = "==1.9.*"
-pydantic = ">=0.32"
+boto3 = ">=1.9"
+python-dateutil = "<2.8.1,>=2.1"
+pydantic = ">=0.30"
 typing-extensions = "*"
 python-magic = {version = "==0.4.*",markers = "sys_platform == 'linux'"}
 python-magic-bin = {version = "==0.4.*",markers = "sys_platform == 'darwin' or sys_platform == 'windows'"}
 pandas = "*"
+joblib = "*"
 
 [dev-packages]
 "flake8" = "==3.7.*"
@@ -30,6 +32,8 @@ wheel = "*"
 coverage = "==4.5.*"
 pipenv-to-requirements = "==0.8.*"
 coveralls = "==1.8.*"
+m2r = "==0.2.*"
+mistune = "==0.8.*"
 
 [pipenv]
 allow_prereleases = true

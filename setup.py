@@ -51,7 +51,7 @@ setup(
     },
     keywords="util aws s3 boto3 upload",
     name="e2fyi-utils",
-    packages=["e2fyi.utils", "e2fyi.utils.aws", "e2fyi.utils.core", "e2fyi.utils.io"],
+    packages=["e2fyi.utils", "e2fyi.utils.aws", "e2fyi.utils.core"],
     setup_requires=setup_requirements,
     python_requires=">=3.6",
     install_requires=requirements,

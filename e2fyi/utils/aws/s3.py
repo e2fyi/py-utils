@@ -1,22 +1,44 @@
 """utils to interact with s3 buckets."""
-import io
-import json
-import logging
-import os.path
-
-from typing import IO, Dict, Union, Generic, TypeVar, Callable, Optional, Generator
+from typing import Any, Dict, TypeVar, Callable, Generator
 
 import boto3
-import pandas as pd
-import botocore.exceptions
 
-from pydantic import BaseModel
-
-from e2fyi.utils.aws.compat import LIB_MAGIC_AVAILABLE
-from e2fyi.utils.core.results import Result
+from e2fyi.utils.aws.s3_stream import S3Stream
+from e2fyi.utils.aws.s3_resource import S3Resource
 
 T = TypeVar("T")
 StringOrBytes = TypeVar("StringOrBytes", bytes, str)
+
+ALLOWED_DOWNLOAD_ARGS = [
+    "VersionId",
+    "SSECustomerAlgorithm",
+    "SSECustomerKey",
+    "SSECustomerKeyMD5",
+    "RequestPayer",
+]
+
+ALLOWED_UPLOAD_ARGS = [
+    "ACL",
+    "CacheControl",
+    "ContentDisposition",
+    "ContentEncoding",
+    "ContentLanguage",
+    "ContentType",
+    "Expires",
+    "GrantFullControl",
+    "GrantRead",
+    "GrantReadACP",
+    "GrantWriteACP",
+    "Metadata",
+    "RequestPayer",
+    "ServerSideEncryption",
+    "StorageClass",
+    "SSECustomerAlgorithm",
+    "SSECustomerKey",
+    "SSECustomerKeyMD5",
+    "SSEKMSKeyId",
+    "WebsiteRedirectLocation",
+]
 
 
 def _noop(key: T) -> T:
@@ -24,432 +46,48 @@ def _noop(key: T) -> T:
     return key
 
 
-class S3Resource(Generic[StringOrBytes]):
-    """
-    S3Resource is a wrapper class to bind the relationship between a S3 object
-    and its local representation (e.g. local file, in-memory stream).
-    """
-
-    def __init__(
-        self,
-        filename: str,
-        content_type: str,
-        bucketname: str = "",
-        prefix: str = "",
-        protocol: str = "s3a://",
-        stream: Union[io.StringIO, io.BytesIO, IO[StringOrBytes]] = None,
-        metadata: Dict[str, str] = None,
-        s3client: boto3.client = None,
-    ):
-        """
-        Creates a new instance of S3Resource.
-
-        Args:
-            filename (str): filename of the object.
-            content_type (str): mime type of the object.
-            bucketname (str, optional): name of the bucket the obj is or should be.
-                Defaults to "".
-            prefix (str, optional): prefix to be added to the filename to get the s3
-                object key. Defaults to "".
-            protocol (str, optional): s3 client protocol. Defaults to "s3a://".
-            stream (Union[io.StringIO, io.BytesIO, IO[StringOrBytes]], optional): data
-                stream. Defaults to None.
-            metadata (dict, optional): metadata for the object. Defaults to None.
-            s3_client (boto3.client, optional): s3 client to use to retrieve
-                resource. Defaults to None.
-        """
-        self.filename = filename
-        self.content_type = content_type
-        self.bucketname = bucketname
-        self.prefix = prefix
-        self.protocol = protocol
-        self._stream: Optional[
-            Union[io.StringIO, io.BytesIO, IO[StringOrBytes]]
-        ] = stream
-        self.metadata = metadata or {}
-        self.s3client = s3client
-
-    @property
-    def key(self) -> str:
-        """Key for the resource."""
-        if not self.filename:
-            raise ValueError("filename cannot be empty.")
-        return "%s%s" % (self.prefix, self.filename)
-
-    @property
-    def uri(self) -> str:
-        """URI to the resource."""
-        if not self.bucketname:
-            raise ValueError("bucketname cannot be empty.")
-        return "%s%s/%s" % (self.protocol, self.bucketname, self.key)
-
-    @property
-    def stream(self):
-        """data stream for the resource."""
-        if self._stream:
-            return self._stream
-
-        if self.bucketname:
-            stream = io.BytesIO()
-            s3client = self.s3client or boto3.client("s3")
-            s3client.download_fileobj(self.bucketname, self.key, stream)
-            stream.seek(0)  # reset to initial counter
-            self._stream = stream
-            return self._stream
-
-        raise RuntimeError("S3Resource does not have a stream.")
-
-    def read(self, size=-1) -> StringOrBytes:
-        """duck-typing for a readable stream."""
-        return self.stream.read(size)  # type: ignore
-
-    def seek(self, offset: int, whence: int = 0) -> int:
-        """duck-typing for readable stream.
-        See https://docs.python.org/3/library/io.html
-
-        Change the stream position to the given byte offset. offset is interpreted
-        relative to the position indicated by whence. The default value for whence
-        is SEEK_SET. Values for whence are:
-
-            SEEK_SET or 0 – start of the stream (the default); offset should be zero
-                or positive
-
-            SEEK_CUR or 1 – current stream position; offset may be negative
-
-            SEEK_END or 2 – end of the stream; offset is usually negative
-
-        Return the new absolute position.
-        """
-        return self.stream.seek(offset, whence)  # type: ignore
-
-    def close(self) -> "S3Resource":
-        """Close the resource stream."""
-        self.stream.close()
-        return self
-
-    def get_value(self) -> StringOrBytes:
-        """Retrieve the entire contents of the S3Resource."""
-        self.seek(0)
-        return self.read()
-
-    def load(
-        self, constructor: Callable[..., T] = None, unpack: bool = True
-    ) -> Union[dict, list, T]:
-        """
-        load the content of the stream into memory using `json.loads`. If a
-        `constructor` is provided, it will be used to create a new object. Setting
-        `unpack` to be true will unpack the content when creating the object
-        with the `constructor` (i.e. * for list, ** for dict)
-
-        Args:
-            constructor (Callable[..., T], optional): A constructor function.
-                Defaults to None.
-            unpack (bool, optional): whether to unpack the content when passing
-                it to the constructor. Defaults to True.
-
-        Raises:
-            TypeError: [description]
-
-        Returns:
-            Union[dict, list, T]: [description]
-        """
-        if not self.content_type == "application/json":
-            raise TypeError("Content type is not 'application/json'.")
-
-        self.seek(0)  # reset buffer offset
-        result = json.loads(self.read())
-
-        if not constructor:
-            return result  # type: ignore
-        if unpack:
-            if isinstance(result, dict):
-                return constructor(**result)
-            if isinstance(result, list):
-                return constructor(*result)
-        return constructor(result)
-
-    def __str__(self) -> str:
-        """String representation of a S3Resource."""
-        try:
-            return self.uri
-        except ValueError:
-            return "%s(metadata=%s)" % (self.__class__.__name__, self.metadata)
-
-
-class S3ResourceHelper:
-    """
-    S3ResourceHelper is a helper class to wrap S3Resource over local files or
-    in-memory data.
-
-    Example::
-
-        import pandas as pd
-
-        from e2fyi.utils.aws import S3ResourceHelper
-        from pydantic import BaseModel
-
-        # creates a text s3 resource
-        text_resource = S3ResourceHelper.wrap("hello world", "text/plain")
-
-        # creates a json s3 resource
-        json_resource = S3ResourceHelper.wrap({"hello": "world"}, "application/json")
-
-        # creates a s3 resource from file
-        file_resource = S3ResourceHelper.wrap(open("some_file.csv"), "text/csv")
-
-        # creates a s3 resource from a dataframe or series
-        df = pd.DataFrame([{"key": "a", "value": 1}, {"key": "b", "value": 2}])
-        df_csv_resource = S3ResourceHelper.wrap(df, "text/csv", index=False)
-        df_json_resource = S3ResourceHelper.wrap(df,
-                                                 "application/json",
-                                                 orient="records")
-
-
-        # creates a s3 resource from a pydantic basemodel
-        class DummyModel(BaseModel):
-            key: string
-            value: int
-
-        model = DummyModel(key="a", value=1)
-        model_resource = S3ResourceHelper.wrap(model, "application/json")
-    """
-
-    @classmethod
-    def wrap(
-        cls,
-        obj: Union[
-            str, bytes, dict, IO[StringOrBytes], pd.DataFrame, pd.Series, BaseModel
-        ],
-        content_type: str,
-        metadata: dict = None,
-        **kwargs
-    ) -> S3Resource:
-        """
-        wrap returns a S3Resource with a data stream of the provided obj.
-
-        Args:
-            obj (Union[str, bytes, dict, IO[StringOrBytes], pd.DataFrame, pd.Series,
-                BaseModel]): data
-            content_type (str): mime type of data
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-
-        Raises:
-            TypeError: "Cannot create S3Resource because obj type is not supported: %s"
-
-        Returns:
-            S3Resource: S3Resource with a data stream of the provided obj.
-        """
-
-        if isinstance(obj, (str, bytes, dict)):
-            return cls.wrap_raw(obj, content_type, metadata=metadata)
-
-        if isinstance(obj, (pd.DataFrame, pd.Series)):
-            if content_type == "application/json":
-                return cls.wrap_pandas_as_json(obj, metadata=metadata, **kwargs)
-            return cls.wrap_pandas_as_csv(obj, metadata=metadata, **kwargs)
-
-        if isinstance(obj, BaseModel):
-            return cls.wrap_raw(obj.dict(), "application/json", metadata=metadata)
-
-        if hasattr(obj, "read"):
-            return cls.wrap_io(obj, content_type, metadata=metadata)
-
-        raise TypeError(
-            "Cannot create S3Resource because obj type is not supported: %s" % type(obj)
-        )
-
-    @classmethod
-    def wrap_raw(
-        cls, obj: Union[str, bytes, dict], content_type: str, metadata: dict = None
-    ) -> S3Resource:
-        """
-        wrap_raw returns a S3Resource with a corresponding io stream.
-
-        Args:
-            obj (Union[str, bytes, dict]): data
-            content_type (str): mime type for the data
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-
-        Raises:
-            ValueError: "obj must be one of the following: string, bytes, or dict."
-
-        Returns:
-            S3Resource: S3Resource with a corresponding io stream.
-        """
-        if isinstance(obj, str):
-            if os.path.isfile(obj):
-                return cls.wrap_file(obj, content_type, metadata=metadata)
-            return cls.wrap_io(io.StringIO(obj), content_type, metadata=metadata)
-
-        if isinstance(obj, bytes):
-            return cls.wrap_io(io.BytesIO(obj), content_type, metadata=metadata)
-
-        if isinstance(obj, dict):
-            stream = io.StringIO(json.dumps(obj))
-            return cls.wrap_io(stream, "application/json", metadata=metadata)
-
-        raise ValueError("obj must be one of the following: string, bytes, or dict.")
-
-    @staticmethod
-    def wrap_pandas_as_csv(
-        df: Union[pd.DataFrame, pd.Series], metadata: dict = None, **kwargs: dict
-    ) -> S3Resource:
-        """
-        wrap_pandas_as_csv returns a S3Resource with a csv stream.
-
-        Args:
-            df (Union[pd.DataFrame, pd.Series]): pandas dataframe
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-            **kwargs: keyword arguments to pass to pandas.to_csv method.
-
-        Returns:
-            S3Resource: S3Resource with a csv stream.
-        """
-        stream = io.StringIO()
-        df.to_csv(stream, **kwargs)
-        # set buffer position to beginning as there should not be any write
-        # operation after this.
-        stream.seek(0)
-        return S3Resource[StringOrBytes](
-            filename="",
-            content_type="application/csv",
-            stream=stream,
-            metadata={"source": "%s" % type(df), **(metadata or {})},
-        )
-
-    @staticmethod
-    def wrap_pandas_as_json(
-        df: Union[pd.DataFrame, pd.Series], metadata: dict = None, **kwargs: dict
-    ) -> S3Resource:
-        """
-        wrap_pandas_as_json returns a S3Resource with a json stream.
-
-        Args:
-            df (Union[pd.DataFrame, pd.Series]): pandas dataframe
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-            **kwargs: keyword arguments to pass to pandas.to_json method.
-
-        Returns:
-            S3Resource: S3Resource with a json stream.
-        """
-        stream = io.StringIO()
-        df.to_json(stream, **kwargs)
-        # set buffer position to beginning as there should not be any write
-        # operation after this.
-        stream.seek(0)
-        return S3Resource[StringOrBytes](
-            filename="",
-            content_type="application/json",
-            stream=stream,
-            metadata={"source": "%s" % type(df), **(metadata or {})},
-        )
-
-    @staticmethod
-    def wrap_io(
-        stream: IO[StringOrBytes], content_type: str, metadata: dict = None
-    ) -> S3Resource:
-        """
-        wrap_io wraps returns a S3Resource with the io stream.
-
-        Args:
-            stream (IO): io stream
-            content_type (str): mime type for the data
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-
-        Returns:
-            S3Resource: S3Resource with the io stream.
-        """
-
-        return S3Resource[StringOrBytes](
-            filename="",
-            content_type=content_type,
-            stream=stream,
-            metadata={"source": "%s" % type(stream), **(metadata or {})},
-        )
-
-    @classmethod
-    def wrap_file(
-        cls, filepath: str, content_type: str = "", metadata: dict = None
-    ) -> S3Resource:
-        """
-        wrap_file returns a S3Resource with a binary data stream.
-        If content_type is not provided, method will attempt to infer from the
-        file.
-
-        Args:
-            filepath (str): path to the file.
-            content_type (str, optional): mime type. Defaults to "".
-            metadata (dict, optional): Additional metadata for s3 object. Defaults to
-                None.
-
-        Raises:
-
-            ValueError: Unable to infer mime type because python-magic is not
-                available. Please provide the content_type for the filepath.
-
-        Returns:
-            S3Resource: [description]
-        """
-        content_type = content_type or cls._infer_mime(filepath)
-
-        prefix = os.path.dirname(filepath) or ""
-        filename = os.path.basename(filepath)
-
-        return S3Resource[bytes](
-            filename=filename,
-            content_type=content_type,
-            prefix=prefix,
-            stream=open(filepath, "rb"),
-            metadata={"source": filepath, **(metadata or {})},
-        )
-
-    @staticmethod
-    def _infer_mime(filepath: str) -> str:
-        """Infer the mime type of the file."""
-        if not LIB_MAGIC_AVAILABLE:
-            raise ValueError(
-                """
-                Unable to infer mime type because python-magic is not available.
-                Please provide the content_type for the filepath.
-
-                For debian or ubuntu machines, you might need to also install:
-
-                ```
-                sudo apt-get install libmagic-dev
-                ```
-                """
-            )
-        import magic
-
-        return magic.from_file(filepath, mime=True)  # type: ignore
-
-
 class S3Bucket:
     """
-    S3Bucket models a s3 bucket configuration.
+    `S3Bucket` is an abstraction of the actual S3 bucket with methods to interact
+    with the actual S3 bucket (e.g. list objects inside the bucket), and some utility
+    methods.
+
+    Prefix rules can also be set during the creation of the `S3Bucket` object - i.e.
+    enforce a particular prefix rules for a particular bucket.
 
     Example::
 
         from e2fyi.utils.aws import S3Bucket
 
-        # upload a dict to s3 bucket
-        S3Bucket("foo").upload("some_folder/some_file.json", {"foo": "bar"})
+        # prints key for all resources with prefix "some_folder/"
+        for resource in S3Bucket("some_bucket").list("some_folder/"):
+            print(resource.key)
 
-        # creates a s3 bucket with std prefix rule
-        foo_bucket = S3Bucket("foo",
-                              get_prefix=lambda prefix: "some_folder/%s" % prefix)
-        foo_bucket.upload("some_file.json", {"foo": "bar"})
+        # prints key for the first 2,000 resources with prefix "some_folder/"
+        for resource in S3Bucket("some_bucket").list("some_folder/", max_objects=2000):
+            print(resource.key)
 
-        # list files
-        S3Bucket("foo").list("some_folder/")
+        # creates a s3 bucket with prefix rule
+        prj_bucket = S3Bucket(
+            "some_bucket", get_prefix=lambda prefix: "prj-a/%s" % prefix
+        )
+        for resource in prj_bucket.list("some_folder/"):
+            print(resource.key)  # prints "prj-a/some_folder/<resource_name>"
 
-        # list files inside "some_folder/"
-        foo_bucket.list()
+        # get obj key in the bucket
+        print(prj_bucket.create_resource_key("foo.json"))  # prints "prj-a/foo.json"
+
+        # get obj uri in the bucket
+        # prints "s3a://some_bucket/prj-a/foo.json"
+        print(prj_bucket.create_resource_uri("foo.json", "s3a://"))
+
+        # create S3Resource in bucket to read in
+        foo = prj_bucket.create_resource("foo.json", "application/json")
+        # read "s3a://some_bucket/prj-a/foo.json" and load as a dict (or list)
+        foo_dict = foo.load()
+
+        # create S3Resource in bucket and save to "s3a://some_bucket/prj-a/foo.json"
+        prj_bucket.create_resource("foo.json", obj={"foo": "bar"}).save()
 
     """
 
@@ -518,64 +156,47 @@ class S3Bucket:
         """
         return "%s%s/%s" % (protocol, self.name, self.create_resource_key(filename))
 
-    def upload(
-        self,
-        filepath: str,
-        body: Union[
-            IO[StringOrBytes],
-            str,
-            bytes,
-            dict,
-            BaseModel,
-            pd.DataFrame,
-            pd.Series,
-            S3Resource[StringOrBytes],
-        ],
-        content_type: str = "text/plain",
-        protocol: str = "s3a://",
-        metadata: dict = None,
-        **kwargs
-    ) -> Result[S3Resource[StringOrBytes]]:
-        """Upload a payload to s3 bucket."""
-
-        key = self._get_prefix(filepath)
-        try:
-            resource = S3ResourceHelper.wrap(body, content_type, **kwargs)
-            resource.bucketname = self.name
-            resource.protocol = protocol
-            resource.prefix = (
-                os.path.join(resource.prefix, os.path.dirname(key))
-                if resource.prefix
-                else os.path.dirname(key) + os.path.sep
-            )
-            resource.filename = os.path.basename(key)
-            if metadata:
-                resource.metadata.update(metadata)
-
-            self._s3client.upload_fileobj(
-                resource,
-                Bucket=resource.bucketname,
-                Key=resource.key,
-                ExtraArgs={
-                    "ContentType": resource.content_type,
-                    "Metadata": resource.metadata or {},
-                },
-                Callback=lambda n: logging.info(
-                    "[%s/%s] bytes transferred: %d",
-                    resource.bucketname,
-                    resource.key,
-                    n,
-                ),
-            )
-        except (botocore.exceptions.ClientError, ValueError) as exc:
-            return Result(None, exception=exc)
-
-        return Result(resource)
-
     def list(
-        self, prefix: str = "", within_project: bool = True
+        self, prefix: str = "", within_project: bool = True, max_objects: int = -1
     ) -> Generator[S3Resource[bytes], None, None]:
-        """Yields S3Resources inside the bucket that matches the prefix."""
+        """
+        Returns a generator that yield S3Resource objects inside the S3Bucket
+        that matches the provided prefix.
+
+        Example::
+
+            # prints key for all resources with prefix "some_folder/"
+            for resource in S3Bucket("some_bucket").list("some_folder/"):
+                print(resource.key)
+
+            # prints key for the first 2,000 resources with prefix "some_folder/"
+            for resource in S3Bucket(
+                "some_bucket").list("some_folder/", max_objects=2000
+            ):
+                print(resource.key)
+
+            # creates a s3 bucket with prefix rule
+            prj_bucket = S3Bucket(
+                "some_bucket", get_prefix=lambda prefix: "prj-a/%s" % prefix
+            )
+            for resource in prj_bucket.list("some_folder/"):
+                print(resource.key)  # prints "prj-a/some_folder/<resource_name>"
+
+
+        Args:
+            prefix (str, optional): [description]. Defaults to "".
+            within_project (bool, optional): [description]. Defaults to True.
+            max_objects (int, optional): max number of object to return. Negative
+                or zero means all objects will be returned. Defaults to -1.
+
+        Returns:
+            Generator[S3Resource[bytes], None, None]: [description]
+
+        Yields:
+            Generator[S3Resource[bytes], None, None]: [description]
+        """
+        count = 0
+
         # constraint list to within project
         if within_project:
             prefix = self._get_prefix(prefix)
@@ -598,9 +219,9 @@ class S3Bucket:
                 filename=filename,
                 content_type="application/octet-stream",
                 prefix=prefix,
-                metadata=item,
                 bucketname=self.name,
                 s3client=self._s3client,
+                stats=item,
             )
 
         while True:
@@ -608,42 +229,103 @@ class S3Bucket:
             if continuation_token:
                 list_kwargs["ContinuationToken"] = continuation_token
             response = self._s3client.list_objects_v2(**list_kwargs)
-            yield from [to_s3_resource(item) for item in response.get("Contents", [])]
+            resources = [to_s3_resource(item) for item in response.get("Contents", [])]
+            size = len(resources)
+
+            # terminate if max_objects hit
+            if count >= max_objects >= 0:
+                break
+
+            # terminate if max_objects hit
+            if count + size > max_objects:
+                yield from resources[: max_objects - count]
+                break
+
+            # yield normally
+            for resource in resources:
+                count += 1
+                yield resource
+
             if not response.get("IsTruncated"):  # At the end of the list?
                 break
+
             continuation_token = response.get("NextContinuationToken")
 
     def create_resource(
         self,
         filename: str,
-        content_type: str,
+        content_type: str = "",
+        obj: Any = None,
         protocol: str = "s3a://",
-        stream: Union[io.StringIO, io.BytesIO, IO[StringOrBytes]] = None,
         metadata: Dict[str, str] = None,
+        pandas_kwargs: dict = None,
+        **kwargs
     ) -> S3Resource:
         """
-        create_s3_resource creates a new instance of S3Resource binds to the
-        current bucket.
+        Creates a new instance of S3Resource binds to the current bucket.
+
+        Example::
+
+            # create S3Resource in bucket to read in
+            foo = prj_bucket.create_resource("foo.json", "application/json")
+            # read "s3a://some_bucket/prj-a/foo.json" and load as a dict (or list)
+            foo_dict = foo.load()
+
+            # create S3Resource in bucket and save to "s3a://some_bucket/prj-a/foo.json"
+            prj_bucket.create_resource("foo.json", obj={"foo": "bar"}).save()
+
 
         Args:
             filename (str): name of the resource.
-            content_type (str): mime type.
+            content_type (str, optional): mime type. Defaults to
+                "application/octet-stream".
+            obj (Any, optional): python object to convert into a resource. Defaults
+                to None.
             protocol (str, optional): protocol. Defaults to "s3a://".
             stream (Union[io.StringIO, io.BytesIO, IO[StringOrBytes]], optional):
                 content of the resource. Defaults to None.
-            metadata (Dict[str, str], optional): metadata for the resource.
-                Defaults to None.
+            metadata (dict, optional): metadata for the object. Defaults to None.
+            pandas_kwargs: Any additional args to pass to `pandas`.
+            **kwargs: Any additional args to pass to `S3Resource`.
 
         Returns:
             S3Resource: a S3Resource related to the active S3Bucket.
         """
+        stream = (
+            S3Stream.from_any(obj, content_type, **(pandas_kwargs or {}))
+            if obj
+            else None
+        )
+
+        if not content_type:
+            if stream:
+                content_type = stream.content_type
+
         return S3Resource(
             filename=filename,
-            content_type=content_type,
-            protocol=protocol,
-            bucketname=self.name,
             prefix=self.prefix,
+            bucketname=self.name,
+            protocol=protocol,
+            content_type=content_type or "application/octet-stream",
             stream=stream,
-            metadata=metadata,
             s3client=self._s3client,
+            Metadata=metadata,
+            **kwargs
+        )
+
+    def upload(  # pylint: disable=no-self-use
+        self,
+        filepath: str,
+        body: Any,
+        content_type: str = "text/plain",
+        protocol: str = "s3a://",
+        metadata: dict = None,
+        **kwargs
+    ) -> Any:
+        """
+        Deprecated since v0.2.0. Use S3Resource.save instead.
+        """
+        raise DeprecationWarning(
+            "S3Bucket.upload is deprecated since v0.2.0. Please "
+            "use S3Resource.save instead."
         )

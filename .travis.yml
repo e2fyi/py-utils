@@ -16,6 +16,7 @@ before_deploy:
 deploy:
   provider: pypi
   user: __token__
+  skip_existing: true
   on:
     tags: true
     branch: master
