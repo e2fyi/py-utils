@@ -4,7 +4,7 @@ import json
 import logging
 import os.path
 
-from typing import IO, Dict, List, Union, Generic, TypeVar, Callable, Optional
+from typing import IO, Dict, Union, Generic, TypeVar, Callable, Optional, Generator
 
 import boto3
 import pandas as pd
@@ -39,6 +39,7 @@ class S3Resource(Generic[StringOrBytes]):
         protocol: str = "s3a://",
         stream: Union[io.StringIO, io.BytesIO, IO[StringOrBytes]] = None,
         metadata: Dict[str, str] = None,
+        s3client: boto3.client = None,
     ):
         """
         Creates a new instance of S3Resource.
@@ -54,16 +55,19 @@ class S3Resource(Generic[StringOrBytes]):
             stream (Union[io.StringIO, io.BytesIO, IO[StringOrBytes]], optional): data
                 stream. Defaults to None.
             metadata (dict, optional): metadata for the object. Defaults to None.
+            s3_client (boto3.client, optional): s3 client to use to retrieve
+                resource. Defaults to None.
         """
         self.filename = filename
         self.content_type = content_type
         self.bucketname = bucketname
         self.prefix = prefix
         self.protocol = protocol
-        self.stream: Optional[
+        self._stream: Optional[
             Union[io.StringIO, io.BytesIO, IO[StringOrBytes]]
         ] = stream
         self.metadata = metadata or {}
+        self.s3client = s3client
 
     @property
     def key(self) -> str:
@@ -79,13 +83,25 @@ class S3Resource(Generic[StringOrBytes]):
             raise ValueError("bucketname cannot be empty.")
         return "%s%s/%s" % (self.protocol, self.bucketname, self.key)
 
+    @property
+    def stream(self):
+        """data stream for the resource."""
+        if self._stream:
+            return self._stream
+
+        if self.bucketname:
+            stream = io.BytesIO()
+            s3client = self.s3client or boto3.client("s3")
+            s3client.download_fileobj(self.bucketname, self.key, stream)
+            stream.seek(0)  # reset to initial counter
+            self._stream = stream
+            return self._stream
+
+        raise RuntimeError("S3Resource does not have a stream.")
+
     def read(self, size=-1) -> StringOrBytes:
         """duck-typing for a readable stream."""
-        if self.stream:
-            return self.stream.read(size)  # type: ignore
-        raise RuntimeError(
-            "Unable to read from stream: S3Resource does not have a stream."
-        )
+        return self.stream.read(size)  # type: ignore
 
     def seek(self, offset: int, whence: int = 0) -> int:
         """duck-typing for readable stream.
@@ -104,16 +120,11 @@ class S3Resource(Generic[StringOrBytes]):
 
         Return the new absolute position.
         """
-        if self.stream:
-            return self.stream.seek(offset, whence)  # type: ignore
-        raise RuntimeError(
-            "Unable to seek from stream: S3Resource does not have a stream."
-        )
+        return self.stream.seek(offset, whence)  # type: ignore
 
     def close(self) -> "S3Resource":
         """Close the resource stream."""
-        if self.stream:
-            self.stream.close()
+        self.stream.close()
         return self
 
     def get_value(self) -> StringOrBytes:
@@ -562,20 +573,45 @@ class S3Bucket:
         return Result(resource)
 
     def list(
-        self, prefix: str = "", max_keys: int = 255, within_project: bool = True
-    ) -> Result[List[str]]:
-        """Get a list of keys in an S3 bucket."""
+        self, prefix: str = "", within_project: bool = True
+    ) -> Generator[S3Resource[bytes], None, None]:
+        """Yields S3Resources inside the bucket that matches the prefix."""
         # constraint list to within project
         if within_project:
             prefix = self._get_prefix(prefix)
-        try:
-            resp = boto3.client("s3").list_objects_v2(
-                Bucket=self.name, Prefix=prefix, MaxKeys=max_keys
+
+        continuation_token = None
+
+        def to_s3_resource(item):
+            """Converts the response object from s3.list_objects_v2 into a
+            S3Resource."""
+            key = item.get("Key", "")
+            chunks = key.split("/")
+            if len(chunks) >= 2:
+                filename = chunks[-1]
+                prefix = "%s/" % "/".join(chunks[0:-1])
+            else:
+                filename = key
+                prefix = ""
+
+            return S3Resource(
+                filename=filename,
+                content_type="application/octet-stream",
+                prefix=prefix,
+                metadata=item,
+                bucketname=self.name,
+                s3client=self._s3client,
             )
-            items = [obj["Key"] for obj in resp["Contents"]]
-        except botocore.exceptions.ClientError as exc:
-            return Result(None, exception=exc)
-        return Result(items)
+
+        while True:
+            list_kwargs = dict(MaxKeys=1000, Prefix=prefix, Bucket=self.name)
+            if continuation_token:
+                list_kwargs["ContinuationToken"] = continuation_token
+            response = self._s3client.list_objects_v2(**list_kwargs)
+            yield from [to_s3_resource(item) for item in response.get("Contents", [])]
+            if not response.get("IsTruncated"):  # At the end of the list?
+                break
+            continuation_token = response.get("NextContinuationToken")
 
     def create_resource(
         self,
@@ -609,4 +645,5 @@ class S3Bucket:
             prefix=self.prefix,
             stream=stream,
             metadata=metadata,
+            s3client=self._s3client,
         )
