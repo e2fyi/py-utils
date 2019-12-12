@@ -7,9 +7,7 @@ from unittest.mock import MagicMock
 
 import boto3
 
-# import pandas as pd
-
-from pydantic import BaseModel
+from pydantic import BaseModel  # pylint: disable=no-name-in-module
 
 from e2fyi.utils.aws.s3_stream import S3Stream
 from e2fyi.utils.aws.s3_resource import S3Resource

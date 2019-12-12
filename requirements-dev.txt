@@ -23,7 +23,7 @@ mistune==0.8.*
 mypy>=0.720
 pipenv-to-requirements==0.8.*
 pydocstyle
-pylint==2.3.*
+pylint==2.4.*
 recommonmark==0.5.*
 setuptools
 sphinx-autoapi==1.*
