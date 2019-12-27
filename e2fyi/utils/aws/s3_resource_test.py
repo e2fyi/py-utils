@@ -120,10 +120,10 @@ class S3ResourceTest(unittest.TestCase):
         transformed = resource.load(lambda a, b, c: "%s:%s:%s" % (a, b, c), unpack=True)
         self.assertEqual(transformed, "a:b:c")
 
-    def test_save(self):
+    def test_save_bin_stream(self):
         data = {"key1": "foo", "key2": "bar"}
         data_str = json.dumps(data)
-        s3stream = S3Stream(io.StringIO(data_str))
+        s3stream = S3Stream(io.BytesIO(data_str.encode("utf-8")))
 
         # mock s3 client
         s3client = boto3.client("s3")
@@ -150,3 +150,30 @@ class S3ResourceTest(unittest.TestCase):
             },
         )
         self.assertDictEqual(resource.last_resp, {"msg": "boto3 response"})
+
+    def test_save_str_stream(self):
+        data = {"key1": "foo", "key2": "bar"}
+        data_str = json.dumps(data)
+        s3stream = S3Stream(io.StringIO(data_str))
+
+        # mock s3 client
+        s3client = boto3.client("s3")
+        s3client.upload_fileobj = MagicMock(return_value={"msg": "boto3 response"})
+
+        resource = S3Resource(
+            "filename.ext",
+            content_type="application/json",
+            prefix="prefix/",
+            bucketname="bucketname",
+            protocol="protocol://",
+            stream=s3stream,
+            s3client=s3client,
+            Metadata={"tag": "metadata"},
+        )
+        resource.save()
+        args, _ = s3client.upload_fileobj.call_args
+        stream, _, _ = args
+        output = stream.read()
+
+        self.assertTrue(isinstance(output, bytes))
+        self.assertDictEqual(data, json.loads(output.decode("utf-8")))
