@@ -233,11 +233,11 @@ class S3Bucket:
             size = len(resources)
 
             # terminate if max_objects hit
-            if count >= max_objects >= 0:
+            if count >= max_objects > 0:
                 break
 
             # terminate if max_objects hit
-            if count + size > max_objects:
+            if count + size > max_objects > 0:
                 yield from resources[: max_objects - count]
                 break
 

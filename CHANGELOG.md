@@ -1,5 +1,11 @@
 # `e2fyi.utils`
 
+## v0.2.1
+
+- Fixes:
+
+  - `S3Bucket.list` should properly yield all objects when `max_objects` is less or equal to `0`.
+
 ## v0.2.0
 
 - New features:

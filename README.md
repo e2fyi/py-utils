@@ -5,7 +5,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/e2fyi/py-utils/badge.svg?branch=master)](https://coveralls.io/github/e2fyi/py-utils?branch=master)
 [![Documentation Status](https://readthedocs.org/projects/e2fyi-utils/badge/?version=latest)](https://e2fyi-utils.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Downloads](https://pepy.tech/badge/e2fyi-utils)](https://pepy.tech/project/e2fyi-utils)
+[![Downloads](https://pepy.tech/badge/e2fyi-utils/month)](https://pepy.tech/project/e2fyi-utils/month)
 
 `e2fyi-utils` is an `e2fyi` namespaced python package with `utils` subpackage
 (i.e. `e2fyi.utils`) which holds a collections of useful helper classes and
