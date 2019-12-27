@@ -326,9 +326,18 @@ class S3Resource(Generic[StringOrBytes]):
         if not bucketname:
             raise ValueError("S3 bucket name must be provided.")
 
+        self.stream.seek(0)
+        sample = self.stream.read(10)
+        self.stream.seek(0)
+
+        if isinstance(sample, str):
+            stream = io.BytesIO(self.stream.read().encode("utf-8"))
+        else:
+            stream = self.stream
+
         s3client = s3client or self.s3client or boto3.client("s3")
         self.last_resp = s3client.upload_fileobj(
-            self.stream,
+            stream,
             bucketname,
             self.key,
             ExtraArgs={"ContentType": self.content_type, **self.extra_args, **kwargs},

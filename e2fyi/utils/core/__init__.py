@@ -28,5 +28,5 @@ Wrapping function with Result::
         logging.exception(data.exception)
 
 """
-from e2fyi.utils.core.results import Result
 from e2fyi.utils.core.maybe import Maybe
+from e2fyi.utils.core.results import Result

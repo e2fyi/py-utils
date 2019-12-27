@@ -1,5 +1,12 @@
 # `e2fyi.utils`
 
+## v0.2.2
+
+- Fixes:
+
+    - `S3Resource.save` will convert any string stream to binary stream as `s3transfer` only support binary streams.
+    - `S3Bucket.create_resource` will correctly initialize `Metadata` with empty `dict` instead of `None`.
+
 ## v0.2.1
 
 - Fixes:

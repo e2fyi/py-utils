@@ -139,6 +139,14 @@ class S3Stream(Generic[StringOrBytes]):
         """
         return self.stream.seek(offset, whence)  # type: ignore
 
+    def seekable(self) -> bool:
+        """Whether if a stream is seekable"""
+        return self.stream.seekable()
+
+    def tell(self) -> int:
+        """Return the current stream position."""
+        return self.stream.tell()
+
     def close(self) -> "S3Stream":
         """Close the resource stream."""
         self.stream.close()

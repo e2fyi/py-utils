@@ -60,6 +60,6 @@ Listing contents inside S3 buckets::
     # list files inside "some_folder/"
     foo_bucket.list()
 """
+from e2fyi.utils.aws.s3 import S3Bucket
 from e2fyi.utils.aws.s3_stream import S3Stream
 from e2fyi.utils.aws.s3_resource import S3Resource
-from e2fyi.utils.aws.s3 import S3Bucket

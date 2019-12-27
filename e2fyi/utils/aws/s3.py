@@ -293,7 +293,7 @@ class S3Bucket:
         """
         stream = (
             S3Stream.from_any(obj, content_type, **(pandas_kwargs or {}))
-            if obj
+            if obj is not None
             else None
         )
 
@@ -309,7 +309,7 @@ class S3Bucket:
             content_type=content_type or "application/octet-stream",
             stream=stream,
             s3client=self._s3client,
-            Metadata=metadata,
+            Metadata=metadata or {},
             **kwargs
         )
 
