@@ -8,7 +8,6 @@ import joblib
 import pandas as pd
 
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
-
 from e2fyi.utils.aws.s3_stream import S3Stream
 
 

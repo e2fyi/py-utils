@@ -12,7 +12,6 @@ import joblib
 import pandas as pd
 
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
-
 from e2fyi.utils.aws.compat import LIB_MAGIC_AVAILABLE
 
 StringOrBytes = TypeVar("StringOrBytes", bytes, str)

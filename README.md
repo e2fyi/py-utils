@@ -1,7 +1,7 @@
 # e2fyi-utils
 
 [![PyPI version](https://badge.fury.io/py/e2fyi-utils.svg)](https://badge.fury.io/py/e2fyi-utils)
-[![Build Status](https://travis-ci.org/e2fyi/py-utils.svg?branch=master)](https://travis-ci.org/e2fyi/py-utils)
+[![Build Status](https://travis-ci.com/e2fyi/py-utils.svg?branch=master)](https://travis-ci.com/github/e2fyi/py-utils)
 [![Coverage Status](https://coveralls.io/repos/github/e2fyi/py-utils/badge.svg?branch=master)](https://coveralls.io/github/e2fyi/py-utils?branch=master)
 [![Documentation Status](https://readthedocs.org/projects/e2fyi-utils/badge/?version=latest)](https://e2fyi-utils.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -22,8 +22,19 @@ Change logs are available in [CHANGELOG.md](./CHANGELOG.md).
 ## Quickstart
 
 ```bash
-pip install e2fyi-utils>=0.2
+# install the default packages only (e.g. no pandas)
+pip install e2fyi-utils[all]
+
+# install all optional packages
+pip install e2fyi-utils[all]
+
+# install specific optional packages
+pip install e2fyi-utils[pandas]
 ```
+
+Available optional packages:
+
+- `pandas`
 
 ### S3Stream
 
