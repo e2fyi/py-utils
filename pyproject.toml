@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "e2fyi-utils"
-version = "0.3.0-rc-1"
+version = "0.3.0-rc-2"
 description = "General utils for interacting with aws resources."
 authors = ["eterna2 <eterna2@hotmail.com>"]
 license = "Apache-2.0"
@@ -16,7 +16,6 @@ pandas = {version = "*", optional = true}
 python-magic = {version = "0.4.*", markers = "sys_platform == 'linux'"}
 python-magic-bin = {version = "0.4.*", markers = "sys_platform == 'darwin' or sys_platform == 'windows'"}
 pydantic = ">=0.30"
-importlib-metadata = {version = "^2.0.0", python = "<3.8"}
 toml = "^0.10.1"
 
 [tool.poetry.extras]

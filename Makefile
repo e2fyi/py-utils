@@ -1,6 +1,10 @@
 .FORCE:
 
-docs: .FORCE
+requirements:
+	poetry export -f requirements.txt --output requirements.txt --extras all
+	poetry export -f requirements.txt --output requirements-dev.txt --dev --extras all
+
+docs: .FORCE requirements
 	poetry run sphinx-build rst docs -b dirhtml -E -P
 
 check:
