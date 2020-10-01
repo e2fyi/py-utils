@@ -1,10 +1,13 @@
 [tool.poetry]
 name = "e2fyi-utils"
-version = "0.3.0-rc-3"
+version = "0.3.0-rc-1"
 description = "General utils for interacting with aws resources."
 authors = ["eterna2 <eterna2@hotmail.com>"]
 license = "Apache-2.0"
 readme = "README.md"
+packages = [
+    {include = "e2fyi"}
+]
 
 [tool.poetry.dependencies]
 python = ">=3.6.1,<4"
