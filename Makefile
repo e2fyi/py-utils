@@ -1,23 +1,21 @@
-dev:
-	pipenv install --dev
-	pipenv run pip install -e .
-
-dists: requirements sdist bdist wheels
-
 .FORCE:
 
 docs: .FORCE
-	sphinx-build rst docs -b dirhtml -E -P
+	poetry run sphinx-build rst docs -b dirhtml -E -P
 
-requirements:
-	pipenv run pipenv_to_requirements
+check:
+	poetry run isort -c e2fyi
+	poetry run black --check e2fyi
 
-sdist: requirements
-	pipenv run python setup.py sdist
+test: check
+	poetry run python test.py
 
-bdist: requirements
-	pipenv run python setup.py bdist
+coveralls: test
+	poetry run coveralls
 
-wheels: requirements
-	pipenv run python setup.py bdist_wheel
+serve-docs: docs
+	cd docs/  && poetry run python -m http.server 8000
 
+format:
+	poetry run isort e2fyi
+	poetry run black e2fyi

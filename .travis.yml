@@ -4,15 +4,21 @@ matrix:
   include:
     - python: 3.6
     - python: 3.7
-cache: pip
+cache:
+  pip: true
+  directories:
+    - "~/.cache/pypoetry"
+branches:
+  only:
+  - master
 install:
-  - pip install -r requirements-dev.txt
-  - python setup.py install
+  - curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+  - source $HOME/.poetry/env
+  - poetry install --extras all
 script:
-  - python test.py
-  - coveralls
+  - make coveralls
 before_deploy:
-  - python setup.py sdist bdist_wheel
+  - poetry build
 deploy:
   provider: pypi
   user: __token__

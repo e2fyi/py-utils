@@ -22,8 +22,19 @@ Change logs are available in [CHANGELOG.md](./CHANGELOG.md).
 ## Quickstart
 
 ```bash
-pip install e2fyi-utils>=0.2
+# install the default packages only (e.g. no pandas)
+pip install e2fyi-utils[all]
+
+# install all optional packages
+pip install e2fyi-utils[all]
+
+# install specific optional packages
+pip install e2fyi-utils[pandas]
 ```
+
+Available optional packages:
+
+- `pandas`
 
 ### S3Stream
 

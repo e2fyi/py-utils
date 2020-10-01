@@ -1,5 +1,11 @@
 # `e2fyi.utils`
 
+## v0.3.0-rc-1
+
+- Changes:
+
+  - Updated dependencies manager to `poetry` from `pipenv`. Made `pandas` an optional package.
+
 ## v0.2.2
 
 - Fixes:
