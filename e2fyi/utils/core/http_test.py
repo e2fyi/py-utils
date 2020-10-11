@@ -41,13 +41,13 @@ class HttpStreamTest(unittest.TestCase):
 
         streamed_content = None
 
-        def side_effect(*args, **kwargs):
+        def side_effect(*_, **kwargs):
             nonlocal streamed_content
             if "data" in kwargs:
                 streamed_content = kwargs["data"].read()
             return MagicMock()
 
-        with patch("requests.post", side_effect=side_effect) as mock_post:
+        with patch("requests.post", side_effect=side_effect):
 
             with HttpStream("https://foo.bar", mode="w") as stream:
                 stream.write("line1")

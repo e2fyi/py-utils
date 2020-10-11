@@ -1,6 +1,5 @@
 import io
 import tempfile
-import functools
 
 from typing import Union, TypeVar, Iterator, Optional
 
@@ -12,10 +11,10 @@ IntermediateObj = TypeVar("IntermediateObj")
 StringOrBytes = TypeVar("StringOrBytes", str, bytes)
 
 
-class HttpStream:
+class HttpStream(io.IOBase):  # pylint: disable=too-many-instance-attributes
     INMEM_SIZE: int = 0
 
-    def __init__(
+    def __init__(  # pylint: disable=super-init-not-called
         self,
         uri: str,
         mode: str = "r",
