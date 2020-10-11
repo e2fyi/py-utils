@@ -20,6 +20,8 @@ python-magic = {version = "0.4.*", markers = "sys_platform == 'linux'"}
 python-magic-bin = {version = "0.4.*", markers = "sys_platform == 'darwin' or sys_platform == 'windows'"}
 pydantic = ">=0.30"
 toml = "^0.10.1"
+requests = "^2.24.0"
+requests-toolbelt = "^0.9.1"
 
 [tool.poetry.extras]
 pandas = ["pandas"]
