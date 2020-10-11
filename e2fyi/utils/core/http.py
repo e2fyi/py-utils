@@ -2,7 +2,7 @@ import io
 import tempfile
 import functools
 
-from typing import Tuple, Union, TypeVar, Iterator, Optional
+from typing import Union, TypeVar, Iterator, Optional
 
 import requests
 
@@ -32,7 +32,7 @@ class HttpStream:
         self.mode = mode
         self.buffering = buffering
         self.newline = newline
-        self.encoding = encoding
+        self.encoding = encoding or "utf-8"
 
         self._decode_unicode = decode_unicode
         self._delimiter = delimiter
@@ -76,10 +76,7 @@ class HttpStream:
         return is_empty
 
     def read(self, size: Optional[int] = -1) -> Union[str, bytes, bytearray]:
-        if not self._state:
-            self._state = HttpStream._read2state(self.uri, **self._kwargs)
-            self._file = HttpStream._state2fileobj(self._state, self._tempfile())
-            self.seek(0)
+        self._read2fileobj()
         return self._file.read(size)  # type: ignore
 
     def flush(self):
@@ -101,30 +98,29 @@ class HttpStream:
             fileobj.write(state.text)
         return fileobj
 
-    @classmethod
-    def _read2fileobj(
-        cls, uri: str, fileobj: tempfile.SpooledTemporaryFile, **kwargs
-    ) -> Tuple[requests.Response, tempfile.SpooledTemporaryFile]:
-        state = cls._read2state(uri, **kwargs)
-        file_ = cls._state2fileobj(state, fileobj)
-        file_.seek(0)
-        return state, file_
+    def _read2fileobj(self) -> requests.Response:
+        if not self._state:
+            if self._file:
+                self._file.close()
+            self._state = self._read2state(self.uri, **self._kwargs)
+            self._file = self._state2fileobj(self._state, self._tempfile())
+            self._file.seek(0)
+            self.encoding = self._state.encoding or "utf-8"
+        return self._state
 
     def _cleanup(self):
         self._state = None
         if self._file:
             self._file.close()
 
-    def __iter__(self) -> Iterator[Union[str, bytes, bytearray]]:
-        if not self._state:
-            self._state, self._file = HttpStream._read2fileobj(
-                self.uri, self._tempfile(), **self._kwargs
-            )
+    def __iter__(self) -> Iterator[bytes]:
+        kwargs: dict = {**self._kwargs, "stream": True}
+        response = requests.get(self.uri, **kwargs)
         if "b" in self.mode:
-            return self._state.iter_content(
+            return response.iter_content(
                 chunk_size=self._chunk_size, decode_unicode=self._decode_unicode
             )
-        return self._state.iter_lines(
+        return response.iter_lines(
             chunk_size=self._chunk_size,
             decode_unicode=self._decode_unicode,
             delimiter=self._delimiter,  # type: ignore
@@ -137,11 +133,7 @@ class HttpStream:
             return self
 
         if "a" in self.mode:
-            if not self._state:
-                self._file.close()
-                self._state, self._file = HttpStream._read2fileobj(
-                    self.uri, self._tempfile(), **self._kwargs
-                )
+            self._read2fileobj()
             self.seek(0, 2)  # go to end of stream
             return self
 
@@ -151,8 +143,21 @@ class HttpStream:
     def __exit__(self, exc_type, exc_value, traceback):
         try:
             if "w" in self.mode or "a" in self.mode:
-                read = functools.partial(self._file.read, io.DEFAULT_BUFFER_SIZE)
-                iter_data = StreamingIterator(self.tell(), iter(read, ""))
+                if "b" in self.mode:
+                    iter_data = StreamingIterator(
+                        self.tell(), self._file, encoding=self.encoding
+                    )
+                else:
+
+                    def iter_bytes():
+                        chunk = self._file.read(self._chunk_size)
+                        if chunk:
+                            yield chunk.encode(self.encoding)
+
+                    iter_data = StreamingIterator(
+                        self.tell(), iter(iter_bytes()), encoding=self.encoding
+                    )
+
                 self.seek(0)
                 resp = requests.post(self.uri, data=iter_data, **self._kwargs)
                 resp.raise_for_status()
