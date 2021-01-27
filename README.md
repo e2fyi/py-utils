@@ -6,6 +6,7 @@
 [![Documentation Status](https://readthedocs.org/projects/e2fyi-utils/badge/?version=latest)](https://e2fyi-utils.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Downloads](https://pepy.tech/badge/e2fyi-utils/month)](https://pepy.tech/project/e2fyi-utils/month)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fe2fyi%2Fpy-utils.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fe2fyi%2Fpy-utils?ref=badge_shield)
 
 `e2fyi-utils` is an `e2fyi` namespaced python package with `utils` subpackage
 (i.e. `e2fyi.utils`) which holds a collections of useful helper classes and
@@ -292,3 +293,7 @@ else:
     logging.exception(data.exception)
 
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fe2fyi%2Fpy-utils.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fe2fyi%2Fpy-utils?ref=badge_large)
