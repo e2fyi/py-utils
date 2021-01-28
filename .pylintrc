@@ -13,7 +13,7 @@ ignore=CVS
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
-ignore-patterns=setup.py,test.py,rst/*.py
+ignore-patterns=test.py,.*_test.py
 
 # Pickle collected data for later comparisons.
 persistent=yes
